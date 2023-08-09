@@ -433,6 +433,14 @@ handle_pre_alarm(dcontext_t *dcontext, unsigned int sec);
 void
 handle_post_alarm(dcontext_t *dcontext, bool success, unsigned int sec);
 
+int
+handle_pre_sigtimedwait(IN dcontext_t *dcontext, IN kernel_sigset_t *set,
+                        OUT kernel_siginfo_t *info, IN struct timespec *ts,
+                        OUT uint *osig);
+
+void
+handle_post_sigtimedwait(IN dcontext_t *dcontext);
+
 /* not exported beyond unix/ unlike rest of clone record routines */
 void
 set_clone_record_fields(void *record, reg_t app_thread_xsp, app_pc continuation_pc,

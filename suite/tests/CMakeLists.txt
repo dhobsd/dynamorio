@@ -4769,6 +4769,7 @@ if (UNIX)
   tobuild(linux.sigplain110 linux/sigplain110.c)
   tobuild(linux.sigplain111 linux/sigplain111.c)
   tobuild(linux.sigaction   linux/sigaction.c)
+  tobuild(linux.sigwait     linux/sigwait.c)
   # We want a native run to verify our assumptions of kernel behaviour.
   torunonly_native(code_api|linux.sigaction.native linux.sigaction
     "" linux/sigaction.c "")
@@ -5548,6 +5549,7 @@ if (NOT ANDROID AND AARCHXX)
       code_api|linux.fib-static
       code_api|linux.signalfd
       code_api|linux.signal_racesys
+      code_api|linux.sigwait
       code_api|client.modules
       PROPERTIES LABELS RUNS_ON_QEMU)
   endif ()

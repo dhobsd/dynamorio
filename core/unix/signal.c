@@ -6990,7 +6990,13 @@ reroute_to_unmasked_thread(dcontext_t *dcontext, sigframe_rt_t *frame, int sig)
         thread_sig_info_t *tgt_info =
             (thread_sig_info_t *)trecs[i]->dcontext->signal_field;
         d_r_mutex_lock(&tgt_info->sigblocked_lock);
-        if (!kernel_sigismember(&tgt_info->app_sigblocked, sig)) {
+
+        /* This thread is eligible for delivery of this signal if it is not marked as
+         * blocked, or if it is marked as blocked and the thread is waiting on
+         * notification of a pending signal, and this signal is of interest.
+         */
+        if (!kernel_sigismember(&tgt_info->app_sigblocked, sig) ||
+            (kernel_sigismember(&tgt_info->app_sigblocked, sig) && tgt_info->waiting)) {
             LOG(THREAD, LOG_ASYNCH, 2,
                 "rerouting signal %d to thread " TIDFMT " where it is unblocked\n", sig,
                 trecs[i]->id);
@@ -8193,6 +8199,60 @@ handle_post_alarm(dcontext_t *dcontext, bool success, unsigned int sec)
     /* alarm is always successful, so do nothing in post */
     ASSERT(success);
     return;
+}
+
+uint
+handle_pre_sigtimedwait(IN dcontext_t *dcontext, IN kernel_sigset_t *set,
+                        OUT kernel_siginfo_t *oinfo, IN struct timespec *ts
+                        OUT uint *osig)
+{
+    thread_sig_info_t *info = (thread_sig_info_t *)dcontext->signal_field;
+    kernel_sigset_t local_mask;
+
+    if (set == NULL) {
+        return EFAULT;
+    }
+
+    if (!d_r_safe_read(set, sizeof *set, &local_mask)) {
+        return EFAULT;
+    }
+
+    /* If there are pending signals that match the set, we can return these
+     * immediately without executing the syscall. If we don't do this, the
+     * target may potentially block indefinitely.
+     */
+    if (info->num_pending > 0) {
+        /* We're required to match the lowest-numbered RT signal if it would
+         * be selected. However, we're not required to match the an RT signal
+         * if non-RT signals are also present, so this ordering will suffice.
+         */
+        for (int i = 1; i < MAX_SIGNUM; i++) {
+            if (info->sigpending[i] != NULL &&
+                (set == NULL || kernel_sigismember(set, i))) {
+                kernel_siginfo_t *pendinfo = &info->sigpending[i]->rt_frame.info;
+
+                if (oinfo != NULL) {
+                    if (!safe_write_ex(oinfo, sizeof *oinfo, pendinfo, NULL)) {
+                        return EFAULT;
+                    }
+                }
+
+                free_pending_signal(info, i);
+                *osig = i;
+                return 0;
+            }
+        }
+    }
+
+    info->waiting = true;
+    return 0;
+}
+
+void
+handle_post_sigtimedwait(IN dcontext_t *dcontext) {
+{
+    thread_sig_info_t *info = (thread_sig_info_t *)dcontext->signal_field;
+    info->waiting = false;
 }
 
 /***************************************************************************

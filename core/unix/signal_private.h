@@ -468,6 +468,8 @@ typedef struct _thread_sig_info_t {
     /* "lock" to prevent interrupting signal from messing up sigpending array */
     bool accessing_sigpending;
     bool nested_pending_ok;
+    /* Is this thread waiting on a blocked signal in sigtimedwait? */
+    bool waiting;
 
     /* This thread's application signal mask: the set of blocked signals.
      * We need to keep this in sync with the thread-group-shared

@@ -7792,7 +7792,28 @@ pre_system_call(dcontext_t *dcontext)
 #    ifdef SYS_rt_sigtimedwait_time64
     case SYS_rt_sigtimedwait_time64: /* 421 */
 #    endif
-    case SYS_rt_sigtimedwait: /* 177 */
+    case SYS_rt_sigtimedwait: { /* 177 */
+        int ret, sig = 0;
+        dcontext->sys_param0 = sys_param(dcontext, 0);
+        dcontext->sys_param1 = sys_param(dcontext, 1);
+        dcontext->sys_param2 = sys_param(dcontext, 2);
+        ret = handle_pre_sigtimedwait(dcontext, (kernel_sigset_t *)dcontext->sys_param0,
+                                      (kernel_siginfo_t *)dcontext->sys_param1,
+                                      (struct timespec *)dcontext->sys_param2, &sig);
+
+        /* If input is faulting or a pending signal could be be returned, return
+         * early to the caller without entering the syscall.
+         */
+        if (ret != 0) {
+            set_failure_return_val(dcontext, ret);
+            execute_syscall = false;
+        } else if (sig > 0) {
+            set_success_return_val(dcontext, sig);
+            execute_syscall = false;
+        }
+
+        break;
+    }
     case SYS_rt_sigqueueinfo: /* 178 */
     case SYS_rt_tgsigqueueinfo:
 #endif
@@ -9234,6 +9255,14 @@ post_system_call(dcontext_t *dcontext)
 #if defined(LINUX) && defined(X86)
     case SYS_alarm: /* 27 on x86 and 37 on x64 */
         handle_post_alarm(dcontext, success, (unsigned int)dcontext->sys_param0);
+        break;
+#endif
+#ifdef LINUX
+#    ifdef SYS_rt_sigtimedwait_time64
+    case SYS_rt_sigtimedwait_time64: /* 421 */
+#    endif
+    case SYS_rt_sigtimedwait: /* 177 */
+        handle_post_sigtimedwait(dcontext);
         break;
 #endif
 #if defined(LINUX) && defined(X86) && defined(X64)

@@ -1,0 +1,5 @@
+blocking SIGALRM
+scheduling SIGALRM
+waiting for delivery
+waiting on pending SIGALRM
+got SIGALRM=1
